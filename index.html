@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solicitação de abono</title>
+<style>
+  :root {
+    --bg: #eef2f6;
+    --paper: #ffffff;
+    --ink: #17232f;
+    --muted: #5b6b7a;
+    --line: #cdd6df;
+    --accent: #0b5cab;
+    --accent-ink: #ffffff;
+    --ok: #17794a;
+    --err: #b3261e;
+    --stub: #fff7e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1820;
+      --paper: #17232f;
+      --ink: #e8eef4;
+      --muted: #9fb0bf;
+      --line: #2f4152;
+      --accent: #5aa7ee;
+      --accent-ink: #08121b;
+      --ok: #5fd39b;
+      --err: #ff8a80;
+      --stub: #2a2616;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: max(20px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    min-height: 100vh;
+  }
+  main { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  input, select, textarea {
+    width: 100%;
+    font: inherit;
+    color: var(--ink);
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 11px 12px;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button {
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    padding: 12px 18px;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .6; cursor: wait; }
+  .actions { margin-top: 22px; }
+  .actions button { width: 100%; }
+  .msg { margin-top: 14px; font-weight: 600; min-height: 1.5em; }
+  .msg.err { color: var(--err); }
+
+  /* Comprovante de protocolo: o elemento central da página */
+  .receipt { display: none; }
+  .receipt.show { display: block; animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .receipt.show { animation: none; } }
+  .stub {
+    background: var(--stub);
+    border: 2px dashed var(--ink);
+    border-radius: 10px;
+    padding: 22px 18px;
+    text-align: center;
+  }
+  .stub .ok { color: var(--ok); font-weight: 700; margin: 0 0 6px; }
+  .stub .proto {
+    font-size: clamp(1.7rem, 8vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: .04em;
+    font-variant-numeric: tabular-nums;
+    margin: 6px 0 10px;
+    word-break: break-all;
+  }
+  .stub p { margin: 4px 0; color: var(--muted); }
+  dl { margin: 16px 0 0; text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-weight: 600; }
+  .row { display: flex; gap: 10px; margin-top: 16px; }
+  .row button { flex: 1; }
+
+  .consult { margin-top: 22px; }
+  .consult h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .consult .line { display: flex; gap: 8px; }
+  .consult input { text-transform: uppercase; }
+  .consult button { white-space: nowrap; }
+  .result { margin-top: 10px; min-height: 1.5em; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Solicitação de abono</h1>
+  <p class="sub">Preencha os dados. Ao enviar, você recebe um número de protocolo.</p>
+
+  <section id="formCard" class="card">
+    <form id="f" novalidate onsubmit="return false;">
+      <label for="data">Data do abono</label>
+      <input id="data" type="date" required>
+
+      <label for="tecnico">Nome do técnico</label>
+      <input id="tecnico" type="text" autocomplete="name" required>
+
+      <label for="motivo">Motivo</label>
+      <select id="motivo" required></select>
+
+      <label for="descricao">Descrição</label>
+      <textarea id="descricao" placeholder="Explique o que aconteceu" required></textarea>
+
+      <div class="actions">
+        <button id="send" type="button">Enviar solicitação</button>
+      </div>
+      <div id="msg" class="msg" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+
+  <section id="receipt" class="card receipt" aria-live="polite">
+    <div class="stub">
+      <p class="ok">Solicitação enviada</p>
+      <p>Seu protocolo:</p>
+      <div class="proto" id="proto"></div>
+      <p>Anote ou tire print. Use esse número para consultar o andamento.</p>
+      <dl>
+        <dt>Técnico</dt><dd id="r-tec"></dd>
+        <dt>Data do abono</dt><dd id="r-data"></dd>
+        <dt>Motivo</dt><dd id="r-mot"></dd>
+        <dt>Enviado em</dt><dd id="r-env"></dd>
+      </dl>
+    </div>
+    <div class="row">
+      <button id="copy" class="ghost" type="button">Copiar protocolo</button>
+      <button id="again" type="button">Nova solicitação</button>
+    </div>
+  </section>
+
+  <section class="card consult">
+    <h2>Consultar protocolo</h2>
+    <div class="line">
+      <input id="cprot" type="text" placeholder="ABN-2026-0001" aria-label="Número do protocolo">
+      <button id="cbtn" class="ghost" type="button">Consultar</button>
+    </div>
+    <div id="cres" class="result" role="status" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+/* ====== CONFIGURAÇÃO ====== */
+// Cole aqui a URL do app da web gerada no Apps Script (termina em /exec)
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzgYUtD3F8fPDSKieL1e8WMq2HeR9YogZvr8HVOlCu5mz4LjSnvIayKMFE0r5Qjrq5I/exec';
+
+// Se quiser lista fixa de técnicos, preencha. Vazio = campo de texto livre.
+const TECNICOS = [
+  'ALEFF PEREIRA SOARES',
+  'ANTONIO CARLOS FERREIRA DA SILVA',
+  'ANTONIO EDUARDO TEIXEIRA CAMELO',
+  'ARLISON DA SILVA PEREIRA',
+  'BRUNO MATIAS DA SILVA',
+  'CLAUDIANO CICINATO DA SILVA',
+  'DAVI MEDINA DE ARAUJO',
+  'FRANCISCO FELIPE DE LIMA ALVES',
+  'GEILSON DA SILVA MOURA',
+  'ITALO XAVIER DA SILVA',
+  'JOAO DE FREITAS RAMOS NETO',
+  'JOSE HENRIQUE PEREIRA SOUSA',
+  'JOSE ILDEVAM SOUSA DO NASCIMENTO',
+  'JOSE WELLITON VIEIRA FELINTO',
+  'LUIZ CARLOS MACHADO MACIEL',
+  'MAISSON FERREIRA DA SILVA',
+  'VANIZIO PEREIRA AZEVEDO DO NASCIMENTO',
+  'VINICIUS SILVA LEARTE',
+  'WELLISON FERREIRA LIMA'
+];
+
+const MOTIVOS = [
+  'Acidente de Trânsito',
+  'Atividade Diferenciada',
+  'Celular com Defeito',
+  'Duplado',
+  'Frota Dia Todo',
+  'Frota Meio Período',
+  'Implantação de Sistemas',
+  'Locadora Preventiva',
+  'Sem Carro',
+  'Sem Celular',
+  'Treinamento Gestão',
+  'Treinamento NR'
+];
+/* ========================== */
+
+const $ = id => document.getElementById(id);
+
+// Motivos
+$('motivo').innerHTML = '<option value="">Selecione o motivo</option>' +
+  MOTIVOS.map(m => `<option>${m}</option>`).join('');
+
+// Lista de técnicos (opcional)
+if (TECNICOS.length) {
+  const sel = document.createElement('select');
+  sel.id = 'tecnico';
+  sel.required = true;
+  sel.innerHTML = '<option value="">Selecione seu nome</option>' +
+    TECNICOS.map(t => `<option>${t}</option>`).join('');
+  $('tecnico').replaceWith(sel);
+}
+
+// Data padrão: hoje
+(function () {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  $('data').value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+})();
+
+function fmtData(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function setMsg(text, isErr) {
+  const el = $('msg');
+  el.textContent = text || '';
+  el.className = 'msg' + (isErr ? ' err' : '');
+}
+
+async function enviar() {
+  const dados = {
+    data: $('data').value,
+    tecnico: $('tecnico').value.trim(),
+    motivo: $('motivo').value,
+    descricao: $('descricao').value.trim()
+  };
+
+  if (!dados.data || !dados.tecnico || !dados.motivo || !dados.descricao) {
+    setMsg('Preencha todos os campos antes de enviar.', true);
+    return;
+  }
+  if (SCRIPT_URL.startsWith('COLE_AQUI')) {
+    setMsg('Falta configurar a URL do Apps Script no arquivo.', true);
+    return;
+  }
+
+  $('send').disabled = true;
+  $('send').textContent = 'Enviando...';
+  setMsg('');
+
+  try {
+    // text/plain evita o bloqueio de CORS do Apps Script
+    const resp = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(dados)
+    });
+    const out = await resp.json();
+    if (!out.ok) throw new Error(out.error || 'Erro ao enviar.');
+
+    $('proto').textContent = out.protocolo;
+    $('r-tec').textContent = dados.tecnico;
+    $('r-data').textContent = fmtData(dados.data);
+    $('r-mot').textContent = dados.motivo;
+    $('r-env').textContent = new Date().toLocaleString('pt-BR');
+    $('formCard').classList.add('hidden');
+    $('receipt').classList.add('show');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) {
+    setMsg(e.message && e.message !== 'Failed to fetch'
+      ? e.message
+      : 'Não foi possível enviar. Verifique a internet e tente de novo.', true);
+  } finally {
+    $('send').disabled = false;
+    $('send').textContent = 'Enviar solicitação';
+  }
+}
+
+$('send').addEventListener('click', enviar);
+
+$('copy').addEventListener('click', async () => {
+  const t = $('proto').textContent;
+  try { await navigator.clipboard.writeText(t); $('copy').textContent = 'Copiado'; }
+  catch (_) { $('copy').textContent = 'Anote: ' + t; }
+  setTimeout(() => $('copy').textContent = 'Copiar protocolo', 2000);
+});
+
+$('again').addEventListener('click', () => {
+  $('descricao').value = '';
+  $('motivo').value = '';
+  $('receipt').classList.remove('show');
+  $('formCard').classList.remove('hidden');
+  setMsg('');
+});
+
+async function consultar() {
+  const p = $('cprot').value.trim().toUpperCase();
+  const out = $('cres');
+  out.className = 'result';
+  if (!p) { out.textContent = 'Digite o número do protocolo.'; return; }
+  if (SCRIPT_URL.startsWith('COLE_AQUI')) { out.textContent = 'Falta configurar a URL do Apps Script.'; return; }
+  out.textContent = 'Consultando...';
+  try {
+    const r = await fetch(SCRIPT_URL + '?protocolo=' + encodeURIComponent(p));
+    const j = await r.json();
+    if (!j.ok) { out.textContent = j.error || 'Protocolo não encontrado.'; return; }
+    out.innerHTML = '';
+    const b = document.createElement('strong');
+    b.textContent = `${j.protocolo}: ${j.status}`;
+    out.appendChild(b);
+    if (j.parecer) {
+      const s = document.createElement('div');
+      s.textContent = 'Parecer: ' + j.parecer;
+      out.appendChild(s);
+    }
+  } catch (_) {
+    out.textContent = 'Não foi possível consultar agora.';
+  }
+}
+$('cbtn').addEventListener('click', consultar);
+$('cprot').addEventListener('keydown', e => { if (e.key === 'Enter') consultar(); });
+</script>
+</body>
+</html>
