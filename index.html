@@ -341,42 +341,6 @@
 /* ============ CONFIGURAÇÃO ============ */
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf_j9eirEI21crjsAB0EVpMmYRgPjfoDmKUIW7OQQBcW0pAB4oi_DFyfw_Wkt_MBg/exec';
 
-const TECNICOS = [
-  'ALEFF PEREIRA SOARES',
-  'ANTONIO CARLOS FERREIRA DA SILVA',
-  'ANTONIO EDUARDO TEIXEIRA CAMELO',
-  'ARLISON DA SILVA PEREIRA',
-  'BRUNO MATIAS DA SILVA',
-  'CLAUDIANO CICINATO DA SILVA',
-  'DAVI MEDINA DE ARAUJO',
-  'FRANCISCO FELIPE DE LIMA ALVES',
-  'GEILSON DA SILVA MOURA',
-  'ITALO XAVIER DA SILVA',
-  'JOAO DE FREITAS RAMOS NETO',
-  'JOSE HENRIQUE PEREIRA SOUSA',
-  'JOSE ILDEVAM SOUSA DO NASCIMENTO',
-  'JOSE WELLITON VIEIRA FELINTO',
-  'LUIZ CARLOS MACHADO MACIEL',
-  'MAISSON FERREIRA DA SILVA',
-  'VANIZIO PEREIRA AZEVEDO DO NASCIMENTO',
-  'VINICIUS SILVA LEARTE',
-  'WELLISON FERREIRA LIMA'
-];
-
-const MOTIVOS = [
-  'Acidente de Trânsito',
-  'Atividade Diferenciada',
-  'Celular com Defeito',
-  'Duplado',
-  'Frota Dia Todo',
-  'Frota Meio Período',
-  'Implantação de Sistemas',
-  'Locadora Preventiva',
-  'Sem Carro',
-  'Sem Celular',
-  'Treinamento Gestão',
-  'Treinamento NR'
-];
 /* ====================================== */
 
 const $ = id => document.getElementById(id);
@@ -412,14 +376,57 @@ function chip(status) {
 }
 const configurado = () => !SCRIPT_URL.startsWith('COLE_AQUI');
 
-/* ----- preencher listas ----- */
-$('tecnico').innerHTML = '<option value="">Selecione seu nome</option>' +
-  TECNICOS.map(t => `<option>${t}</option>`).join('');
-$('motivo').innerHTML = '<option value="">Selecione o motivo</option>' +
-  MOTIVOS.map(m => `<option>${m}</option>`).join('');
+/* ----- listas (vêm da planilha) ----- */
+let TECNICOS = [], MOTIVOS = [];
+const KEY_CFG = 'abono_config';
 
-const lembrado = store.get(KEY_TEC, '');
-if (lembrado && TECNICOS.includes(lembrado)) $('tecnico').value = lembrado;
+function montarOpcoes(sel, lista, vazio) {
+  const atual = sel.value;
+  sel.innerHTML = '';
+  const o0 = document.createElement('option');
+  o0.value = ''; o0.textContent = vazio;
+  sel.appendChild(o0);
+  lista.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+  if (atual && lista.includes(atual)) sel.value = atual;
+}
+
+function aplicarConfig(cfg) {
+  TECNICOS = cfg.tecnicos || [];
+  MOTIVOS = cfg.motivos || [];
+  montarOpcoes($('tecnico'), TECNICOS, 'Selecione seu nome');
+  montarOpcoes($('motivo'), MOTIVOS, 'Selecione o motivo');
+  const lembrado = store.get(KEY_TEC, '');
+  if (!$('tecnico').value && lembrado && TECNICOS.includes(lembrado)) $('tecnico').value = lembrado;
+}
+
+/* Lê técnicos e motivos da planilha (abas Colaboradores e Motivos). */
+async function carregarConfig() {
+  const cache = store.get(KEY_CFG, null);
+  if (cache) {
+    aplicarConfig(cache);
+  } else {
+    montarOpcoes($('tecnico'), [], 'Carregando...');
+    montarOpcoes($('motivo'), [], 'Carregando...');
+  }
+  if (!configurado()) return;
+  try {
+    const j = await pedir(SCRIPT_URL + '?action=config', {}, 20000);
+    if (!j || !j.ok || !Array.isArray(j.tecnicos) || !Array.isArray(j.motivos)) throw new Error('config');
+    store.set(KEY_CFG, { tecnicos: j.tecnicos, motivos: j.motivos });
+    aplicarConfig(j);
+  } catch (_) {
+    if (!cache) {
+      montarOpcoes($('tecnico'), [], 'Não foi possível carregar');
+      montarOpcoes($('motivo'), [], 'Não foi possível carregar');
+      banner('Não foi possível carregar as listas. Verifique a internet e atualize a página.');
+    }
+  }
+}
+
 $('data').value = hojeISO();
 
 /* ----- dica da data ----- */
@@ -702,6 +709,7 @@ $('refAll').addEventListener('click', async () => {
 });
 
 renderHist();
+carregarConfig();
 </script>
 </body>
 </html>
